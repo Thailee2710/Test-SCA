@@ -1,0 +1,16 @@
+{
+  "name": "test-sca-demo",
+  "version": "1.0.0",
+  "description": "Demo project with vulnerable dependencies for Dependabot POC",
+  "private": true,
+  "dependencies": {
+    "lodash": "4.17.20",
+    "moment": "2.29.1",
+    "jquery": "3.4.1",
+    "serialize-javascript": "1.9.0",
+    "express": "4.17.1"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
