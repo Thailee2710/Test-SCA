@@ -4,7 +4,7 @@
   "description": "Demo project with vulnerable dependencies for Dependabot POC",
   "private": true,
   "dependencies": {
-    "lodash": "4.17.20",
+    "lodash": "4.17.23",
     "moment": "2.29.1",
     "jquery": "3.4.1",
     "serialize-javascript": "1.9.0",
