@@ -2,7 +2,7 @@
 # DO NOT use in production!
 
 requests==2.19.0          # CVE-2018-18074 - Authorization header leak on redirect
-PyYAML==5.3               # CVE-2020-1747 - Arbitrary code execution via FullLoader
+PyYAML==6.0.3               # CVE-2020-1747 - Arbitrary code execution via FullLoader
 Flask==1.0                # CVE-2019-1010083 - Denial of Service
 Jinja2==2.10              # CVE-2019-10906 - Sandbox escape
 Pillow==6.2.0             # CVE-2021-23437 - Buffer overflow in image processing
