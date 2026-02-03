@@ -7,7 +7,7 @@
     "lodash": "4.17.20",
     "moment": "2.29.1",
     "jquery": "3.4.1",
-    "serialize-javascript": "1.9.0",
+    "serialize-javascript": "7.0.2",
     "express": "4.17.1"
   },
   "scripts": {
