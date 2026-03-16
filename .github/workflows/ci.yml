@@ -1,0 +1,35 @@
+# Simple CI workflow using outdated actions for Dependabot demo
+# DO NOT use in production!
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3        # Outdated (latest is v4)
+      - uses: actions/setup-python@v4    # Outdated (latest is v5)
+        with:
+          python-version: "3.8"
+      - uses: actions/setup-node@v3      # Outdated (latest is v4)
+        with:
+          node-version: "18"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Python tests
+        run: python -m pytest test_*.py -v
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Check Node dependencies
+        run: npm audit || true
