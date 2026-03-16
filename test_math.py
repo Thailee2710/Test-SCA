@@ -1,3 +1,6 @@
+import pytest
+
+
 def multiply(a, b):
     return a * b
 
@@ -8,6 +11,17 @@ def divide(a, b):
     return a / b
 
 
-if __name__ == "__main__":
-    print(f"3 * 4 = {multiply(3, 4)}")
-    print(f"10 / 3 = {divide(10, 3):.2f}")
+def test_multiply():
+    assert multiply(3, 4) == 12
+    assert multiply(0, 5) == 0
+    assert multiply(-2, 3) == -6
+
+
+def test_divide():
+    assert divide(10, 2) == 5.0
+    assert divide(7, 2) == 3.5
+
+
+def test_divide_by_zero():
+    with pytest.raises(ValueError):
+        divide(1, 0)

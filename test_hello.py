@@ -6,6 +6,12 @@ def add(a, b):
     return a + b
 
 
-if __name__ == "__main__":
-    print(hello("World"))
-    print(f"1 + 2 = {add(1, 2)}")
+def test_hello():
+    assert hello("World") == "Hello, World!"
+    assert hello("Python") == "Hello, Python!"
+
+
+def test_add():
+    assert add(1, 2) == 3
+    assert add(-1, 1) == 0
+    assert add(0, 0) == 0
