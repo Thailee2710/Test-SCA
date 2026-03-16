@@ -7,3 +7,4 @@ Flask==1.0                # CVE-2019-1010083 - Denial of Service
 Jinja2==2.10              # CVE-2019-10906 - Sandbox escape
 Pillow==8.2.0             # CVE-2021-34552 - Buffer overflow via crafted image
 urllib3==1.23              # CVE-2018-20060 - Credential exposure in redirects
+pytest==7.1.0             # Test runner
