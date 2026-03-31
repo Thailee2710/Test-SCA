@@ -13,10 +13,6 @@ on:
   schedule:
     - cron: '0 6 * * 1'  # Mỗi thứ 2 lúc 6:00 UTC
 
-permissions:
-  contents: read
-  security-events: write  # Cần để upload SARIF lên Security tab
-
 jobs:
   # ──────────────────────────────────────────────────────────
   # 1. TRIVY — Quét lỗ hổng + License + Tạo SBOM
@@ -24,6 +20,10 @@ jobs:
   trivy:
     name: Trivy Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +37,7 @@ jobs:
           severity: 'CRITICAL,HIGH,MEDIUM'
 
       - name: Upload Trivy SARIF → GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
@@ -50,7 +50,7 @@ jobs:
           scan-ref: '.'
           scanners: 'license'
           severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
-          exit-code: '0'  # Không chặn CI, chỉ báo cáo
+          exit-code: '0'
 
       - name: Trivy — Tạo SBOM (CycloneDX)
         uses: aquasecurity/trivy-action@master
@@ -74,6 +74,10 @@ jobs:
   grype:
     name: Grype + Syft Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
@@ -94,7 +98,7 @@ jobs:
           output-format: sarif
 
       - name: Upload Grype SARIF → GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: ${{ steps.grype.outputs.sarif }}
@@ -114,22 +118,25 @@ jobs:
   osv-scanner:
     name: OSV-Scanner
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cài đặt OSV-Scanner
+        run: |
+          curl -fsSL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o osv-scanner
+          chmod +x osv-scanner
+          sudo mv osv-scanner /usr/local/bin/
+
       - name: OSV-Scanner — Quét lỗ hổng
-        uses: google/osv-scanner-action/osv-scanner-action@v2
-        id: osv
-        continue-on-error: true  # Không chặn CI khi phát hiện lỗ hổng
-        with:
-          scan-args: |-
-            -r
-            --format=sarif
-            --output=osv-results.sarif
-            .
+        run: |
+          osv-scanner scan -r --format sarif --output osv-results.sarif . || true
 
       - name: Upload OSV SARIF → GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'osv-results.sarif'
@@ -142,6 +149,8 @@ jobs:
   dependency-check:
     name: OWASP Dependency-Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: github.event_name == 'schedule' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
@@ -157,7 +166,7 @@ jobs:
           args: >-
             --nvdApiKey ${{ secrets.NVD_API_KEY }}
             --failOnCVSS 0
-        continue-on-error: true  # NVD download có thể timeout
+        continue-on-error: true
 
       - name: Upload DC Report
         uses: actions/upload-artifact@v4
