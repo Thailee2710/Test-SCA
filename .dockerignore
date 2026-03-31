@@ -1,0 +1,9 @@
+.git
+*.pdf
+*.png
+Doc*.md
+Benchmark*.md
+*.pyc
+__pycache__
+node_modules
+scan-results

@@ -1,0 +1,168 @@
+# ============================================================
+# SCA Scanning Pipeline — Trivy, Grype, OSV-Scanner
+# Kết quả hiện trên GitHub Security tab (Code Scanning)
+# ============================================================
+
+name: SCA Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Mỗi thứ 2 lúc 6:00 UTC
+
+permissions:
+  contents: read
+  security-events: write  # Cần để upload SARIF lên Security tab
+
+jobs:
+  # ──────────────────────────────────────────────────────────
+  # 1. TRIVY — Quét lỗ hổng + License + Tạo SBOM
+  # ──────────────────────────────────────────────────────────
+  trivy:
+    name: Trivy Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy — Quét lỗ hổng (SARIF → Security tab)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy SARIF → GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: 'trivy'
+
+      - name: Trivy — Quét license
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'license'
+          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+          exit-code: '0'  # Không chặn CI, chỉ báo cáo
+
+      - name: Trivy — Tạo SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'cyclonedx'
+          output: 'sbom-trivy.json'
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: sbom-trivy
+          path: sbom-trivy.json
+          retention-days: 90
+
+  # ──────────────────────────────────────────────────────────
+  # 2. GRYPE + SYFT — Quét lỗ hổng + Tạo SBOM
+  # ──────────────────────────────────────────────────────────
+  grype:
+    name: Grype + Syft Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syft — Tạo SBOM (CycloneDX)
+        uses: anchore/sbom-action@v0
+        with:
+          path: '.'
+          format: 'cyclonedx-json'
+          output-file: 'sbom-syft.json'
+
+      - name: Grype — Quét lỗ hổng (SARIF → Security tab)
+        uses: anchore/scan-action@v6
+        id: grype
+        with:
+          sbom: 'sbom-syft.json'
+          fail-build: false
+          severity-cutoff: medium
+          output-format: sarif
+
+      - name: Upload Grype SARIF → GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ${{ steps.grype.outputs.sarif }}
+          category: 'grype'
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: sbom-syft
+          path: sbom-syft.json
+          retention-days: 90
+
+  # ──────────────────────────────────────────────────────────
+  # 3. OSV-SCANNER — Quét lỗ hổng (Google OSV database)
+  # ──────────────────────────────────────────────────────────
+  osv-scanner:
+    name: OSV-Scanner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: OSV-Scanner — Quét lỗ hổng
+        uses: google/osv-scanner-action/osv-scanner-action@v2
+        id: osv
+        continue-on-error: true  # Không chặn CI khi phát hiện lỗ hổng
+        with:
+          scan-args: |-
+            -r
+            --format=sarif
+            --output=osv-results.sarif
+            .
+
+      - name: Upload OSV SARIF → GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'osv-results.sarif'
+          category: 'osv-scanner'
+
+  # ──────────────────────────────────────────────────────────
+  # 4. DEPENDENCY-CHECK — Quét lỗ hổng (NVD database)
+  #    Chạy theo lịch (chậm ~10 phút) hoặc khi push main
+  # ──────────────────────────────────────────────────────────
+  dependency-check:
+    name: OWASP Dependency-Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency-Check — Quét lỗ hổng
+        uses: dependency-check/Dependency-Check_Action@main
+        env:
+          JAVA_HOME: /opt/jdk
+        with:
+          project: 'Test-SCA'
+          path: '.'
+          format: 'HTML'
+          args: >-
+            --nvdApiKey ${{ secrets.NVD_API_KEY }}
+            --failOnCVSS 0
+        continue-on-error: true  # NVD download có thể timeout
+
+      - name: Upload DC Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report
+          path: reports/
+          retention-days: 30
