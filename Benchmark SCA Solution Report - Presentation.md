@@ -37,7 +37,7 @@ Dependencies ──┘                  Theo dõi license
 | SBOM Generation | Trivy và Syft tạo SBOM tự động trong CI/CD pipeline |
 | Dashboard tập trung | Chưa có |
 | Container Image Scanning | Chưa có |
-| License Compliance | Chưa có |
+| License Compliance | Trivy quét license trong CI (chưa cấu hình chặn vi phạm) |
 | Custom Policy Enforcement | Chưa có |
 
 ---
@@ -84,9 +84,9 @@ Dependencies ──┘                  Theo dõi license
 |---|----------|------------|-------|--------------|-------------|----------|
 | 1 | Phát hiện lỗ hổng (Accuracy) | **2** | 2* | 2* | 2* | 1* |
 | 2 | Phạm vi DB lỗ hổng (Coverage) | **1** | 2* | 2* | 2* | 1* |
-| 3 | Tạo SBOM | 0 | 2* | 2* | 1* | 0 |
+| 3 | Tạo SBOM | 0 | **2** | **2** | 1* | 0 |
 | 4 | Tự tạo PR sửa lỗi (Auto-Fix) | **2** | 0 | 0 | 1* | 0 |
-| 5 | Tích hợp CI/CD | **2** | 2* | 2* | 2* | 2* |
+| 5 | Tích hợp CI/CD | **2** | **2** | **2** | **2** | **2** |
 | 6 | Hỗ trợ đa ngôn ngữ | **2** | 2* | 2* | 2* | 1* |
 | 7 | Quét Container Image | 0 | 2* | 2* | 1* | 0 |
 | 8 | Phát hiện License | 0 | 2* | 1* | 0 | 0 |
@@ -300,15 +300,15 @@ docker compose up -d
 
 ```
  requirements.txt ─┐
- requirements.txt ─┬· package-lock.json ┬─▶  ┌──────────────────┐     ┌──────────────────┐
- package-lock.json ┬─▶  │ Dependabot quét  │────▶│ 102 Alerts       │
- Dockerfile ───────┤     │ (daily)          │     │ (60 đang mở)   │
- ci.yml ───────────┘     └────────┬─────────┘     │ 5 Critical      │
-                                   │               │ 23 High          │
-                                   ▼               │ 25 Medium        │
-                          ┌──────────────────┐     │ 7 Low            │
-                          │ 23 PRs tự động   │     └──────────────────┘
-                          │ 15 Open, 8 Closed│
+ package.json ─────┤     ┌──────────────────┐     ┌──────────────────┐
+ package-lock.json ┼──▶  │ Dependabot quét  │────▶│ 102 Alerts       │
+ Dockerfile ───────┤     │ (daily)          │     │ (60 đang mở)     │
+ ci.yml ───────────┘     └────────┬─────────┘     │ 5 Critical       │
+                                  │               │ 23 High          │
+                                  ▼               │ 25 Medium        │
+                         ┌──────────────────┐     │ 7 Low            │
+                         │ 23 PRs tự động   │     └──────────────────┘
+                         │ 15 Open, 8 Closed│
                          └──────────────────┘
 ```
 
@@ -347,8 +347,35 @@ docker compose up -d
 ⚠️ Chỉ hoạt động trên GitHub
 ⚠️ Không tạo SBOM
 ⚠️ Không có dashboard tập trung
+⚠️ Không tạo SBOM
+⚠️ Không có dashboard tập trung
 ⚠️ Không có custom policy enforcement
 ```
+
+---
+
+### Kết quả Multi-Tool Scanning (GitHub Actions — đã tích hợp)
+
+Ngoài Dependabot, **4 scanner** đã được tích hợp vào CI/CD pipeline (`.github/workflows/sca-scan.yml`) và chạy thành công trên repository `Test-SCA`:
+
+| Tool | Trạng thái CI | Kết quả Code Scanning | Output Artifact |
+|------|---------------|----------------------|-----------------|
+| **Trivy** | ✅ SUCCESS | **40 alert** (5C / 12H / 21M / 2L) → GitHub Security tab | CycloneDX SBOM (3.2KB) + license scan |
+| **Grype + Syft** | ✅ SUCCESS | **60 alert** (6C / 23H / 28M / 3L) → GitHub Security tab | CycloneDX SBOM × 2 (Syft 6.7KB + Grype 6.7KB) |
+| **OSV-Scanner** | ✅ SUCCESS | 0 alert riêng biệt (đã phủ bởi Grype/Trivy — GitHub tự dedup) | SARIF uploaded |
+| **OWASP DC** | ✅ SUCCESS | HTML report 63KB | Artifact (không tích hợp Security tab) |
+
+**Tổng GitHub Security tab (Code Scanning):** 100 alert đang mở — Grype: 60, Trivy: 40
+
+**SBOM artifacts từ CI/CD mỗi push lên main:**
+- `sbom-trivy.json` — CycloneDX JSON, Trivy (3.2KB)
+- `sbom-syft.json` — CycloneDX JSON, Syft (6.7KB)
+- `Test-SCA-grype.cyclonedx.json` — CycloneDX JSON, Grype via Syft (6.7KB)
+- `dependency-check-report/` — HTML report, OWASP DC (63KB)
+
+> **Ghi chú OSV-Scanner:** Tool chạy thành công và upload SARIF, nhưng GitHub Security tab hiển thị 0 alert riêng biệt vì toàn bộ lỗ hổng đã được Grype và Trivy phát hiện (GitHub tự merge duplicate alerts giữa các tool).
+
+> **Ghi chú OWASP DC:** Tool chạy thành công nhưng kết quả chỉ xuất ra HTML artifact, không tích hợp vào GitHub Security tab (không có SARIF upload). Cần NVD API Key để đạt phạm vi phủ tối đa.
 
 ---
 
@@ -359,7 +386,7 @@ docker compose up -d
 ```
 Dependabot (auto-fix PR)  ←  Đã triển khai
     +
-Trivy (quét toàn diện + SBOM)  ←  Cần cài đặt
+Trivy (quét toàn diện + SBOM)  ←  Đã tích hợp vào CI/CD
 ```
 
 ### Dành cho Team Trung bình (5–20 dự án)
@@ -367,7 +394,7 @@ Trivy (quét toàn diện + SBOM)  ←  Cần cài đặt
 ```
 Dependabot (auto-fix PR)  ←  Đã triển khai
     +
-Trivy (quét + SBOM trong CI)  ←  Cần cài đặt
+Trivy + Grype + OSV-Scanner (quét + SBOM trong CI)  ←  Đã tích hợp vào CI/CD
     +
 Dependency-Track (dashboard + policy)  ←  Cần triển khai
 ```
@@ -382,7 +409,34 @@ Dependency-Track (dashboard + SBOM + policy)
 Dependabot hoặc Renovate (auto-fix)
 ```
 
-### Luồng CI/CD Hoàn chỉnh (khuyến nghị)
+### Luồng CI/CD Hiện tại (đã triển khai)
+
+```
+Developer push code
+       │
+       ▼
+┌──────────────────────────────────────────────┐
+│  sca-scan.yml (GitHub Actions)               │
+│                                              │
+│  ✅ Trivy — fs scan → SARIF + SBOM artifact  │
+│  ✅ Trivy — license scan (log only)          │
+│  ✅ Grype + Syft — SARIF + SBOM artifact     │
+│  ✅ OSV-Scanner — SARIF (0 dedup alerts)     │
+│  ✅ OWASP DC — HTML artifact                 │
+│                                              │
+│  ⚠️ Chưa cấu hình fail-build (không chặn)   │
+│  ⚠️ Chưa upload SBOM lên Dependency-Track   │
+└──────────────────────────────────────────────┘
+       │
+       ▼
+┌──────────────────────────────────────────────┐
+│  Dependabot (tự động, daily)                 │
+│  ✅ Tạo PR fix lỗ hổng (23 PR tổng cộng)    │
+│  ✅ CI test trên mỗi PR                      │
+└──────────────────────────────────────────────┘
+```
+
+### Luồng CI/CD Mục tiêu (khuyến nghị — chưa triển khai)
 
 ```
 Developer push code
@@ -411,14 +465,6 @@ Developer push code
 │  • Policy engine đánh giá risk   │
 │  • Alert qua Slack/Teams/Email   │
 │  • Dashboard cho ban lãnh đạo    │
-└──────────────────────────────────┘
-       │
-       ▼
-┌──────────────────────────────────┐
-│  Dependabot (tự động)            │
-│  • Tạo PR fix lỗ hổng           │
-│  • Update dependency version     │
-│  • CI test trên mỗi PR          │
 └──────────────────────────────────┘
 ```
 
