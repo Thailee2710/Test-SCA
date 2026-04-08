@@ -1,5 +1,5 @@
 # Intentionally using an outdated Python base image for Dependabot demo
-FROM python:3.8-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
